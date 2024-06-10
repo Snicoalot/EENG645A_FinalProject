@@ -12,14 +12,16 @@ to set this up are included here.
 
 # Import necessary packages
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.regularizers import l1_l2
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam, RMSprop
+from scikeras.wrappers import KerasClassifier
 import matplotlib.pyplot as plt
+import joblib
+import numpy as np
 
 # Load the DataFrame
 df = pd.read_csv('/remote_home/EENG645A_FinalProject-1/processed_data/clean.csv')
@@ -153,33 +155,117 @@ X_test = scaler.transform(X_test)
 
 ''' STEP 7: GENERALIZED MODEL '''
 
-model3 = Sequential([
-    Dense(128, input_dim=X_train.shape[1], activation='relu'),
-    Dropout(0.5),
-    Dense(64, activation='relu'),
-    Dropout(0.5),
-    Dense(32, activation='relu'),
-    Dropout(0.5),
-    Dense(16, activation='relu'),
-    Dropout(0.5),
-    Dense(1, activation='sigmoid')
-])
+# model3 = Sequential([
+#     Dense(128, input_dim=X_train.shape[1], activation='relu'),
+#     Dropout(0.5),
+#     Dense(64, activation='relu'),
+#     Dropout(0.5),
+#     Dense(32, activation='relu'),
+#     Dropout(0.5),
+#     Dense(16, activation='relu'),
+#     Dropout(0.5),
+#     Dense(1, activation='sigmoid')
+# ])
 
-# Compile the model
-model3.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+# # Compile the model
+# model3.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-# Define early stopping
+# # Define early stopping
+# early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+# # Train the model
+# history = model3.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_val, y_val), callbacks=[early_stopping])
+
+# # Evaluate the model on the test set
+# test_loss, test_accuracy = model3.evaluate(X_test, y_test)
+# print(f'Test Loss: {test_loss}')
+# print(f'Test Accuracy: {test_accuracy}')
+
+# # Plot the training history
+# plt.figure(figsize=(12, 4))
+
+# # Plot training & validation accuracy values
+# plt.subplot(1, 2, 1)
+# plt.plot(history.history['accuracy'])
+# plt.plot(history.history['val_accuracy'])
+# plt.title('Model accuracy')
+# plt.ylabel('Accuracy')
+# plt.xlabel('Epoch')
+# plt.legend(['Train', 'Validation'], loc='upper left')
+
+# # Plot training & validation loss values
+# plt.subplot(1, 2, 2)
+# plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+# plt.title('Model loss')
+# plt.ylabel('Loss')
+# plt.xlabel('Epoch')
+# plt.legend(['Train', 'Validation'], loc='upper left')
+
+# # Save the plots
+# plt.savefig('/remote_home/EENG645A_FinalProject-1/figures/step7_training_history.png')
+
+''' 
+This model is now the baseline. We will use hyperparameter tuning to see if we can train a better one!
+'''
+
+# Function to create model for KerasClassifier
+def create_model(optimizer='adam', dropout_rate=0.3, neurons1=128, neurons2=64, neurons3=32, neurons4=16):
+    model = Sequential()
+    model.add(Dense(neurons1, input_dim=X_train.shape[1], activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(neurons2, activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(neurons3, activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(neurons4, activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+# Create the KerasClassifier with default parameters
+model = KerasClassifier(
+    model=create_model, 
+    epochs=100, 
+    batch_size=32, 
+    verbose=0,
+    optimizer='adam',
+    dropout_rate=0.3,
+    neurons1=128,
+    neurons2=64,
+    neurons3=32,
+    neurons4=16
+)
+
+# Define the randomized search parameters
+param_dist = {
+    'optimizer': ['adam', 'rmsprop'],
+    'dropout_rate': [0.3, 0.4, 0.5],
+    'neurons1': [128, 64, 32],
+    'neurons2': [64, 32, 16],
+    'neurons3': [32, 16, 8],
+    'neurons4': [16, 8, 4],
+    'batch_size': [32, 64, 128]
+}
+
+# Create early stopping callback
 early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
-# Train the model
-history = model3.fit(X_train, y_train, epochs=200, batch_size=32, validation_data=(X_val, y_val), callbacks=[early_stopping])
+# Create RandomizedSearchCV
+random_search = RandomizedSearchCV(estimator=model, param_distributions=param_dist, n_iter=50, n_jobs=-1, cv=2, verbose=1, random_state=42)
+random_search_result = random_search.fit(X_train, y_train, validation_data=(X_val, y_val), callbacks=[early_stopping])
 
-# Evaluate the model on the test set
-test_loss, test_accuracy = model3.evaluate(X_test, y_test)
-print(f'Test Loss: {test_loss}')
-print(f'Test Accuracy: {test_accuracy}')
+# Print the best parameters and best score
+print(f"Best: {random_search_result.best_score_} using {random_search_result.best_params_}")
 
-# Plot the training history
+# Save the best model
+best_model = random_search_result.best_estimator_.model_
+best_model.save('/remote_home/EENG645A_FinalProject-1/models/best_model.h5')
+
+# Plot the training history of the best model
+history = random_search_result.best_estimator_.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=100, batch_size=32, callbacks=[early_stopping], verbose=0)
+
 plt.figure(figsize=(12, 4))
 
 # Plot training & validation accuracy values
@@ -201,4 +287,7 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Validation'], loc='upper left')
 
 # Save the plots
-plt.savefig('/remote_home/EENG645A_FinalProject-1/figures/step7_training_history.png')
+plt.savefig('/remote_home/EENG645A_FinalProject-1/figures/training_history_best.png')
+
+# Show the plots
+plt.show()
