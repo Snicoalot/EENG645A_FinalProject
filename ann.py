@@ -12,15 +12,13 @@ to set this up are included here.
 
 # Import necessary packages
 import pandas as pd
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam, RMSprop
-from scikeras.wrappers import KerasClassifier
 import matplotlib.pyplot as plt
-import joblib
 import numpy as np
 
 # Load the DataFrame
@@ -210,7 +208,7 @@ This model is now the baseline. We will use hyperparameter tuning to see if we c
 '''
 
 # Function to create model for KerasClassifier
-def create_model(optimizer='adam', dropout_rate=0.3, neurons1=128, neurons2=64, neurons3=32, neurons4=16):
+def create_model(optimizer='adam', dropout_rate=0.3, neurons1=64, neurons2=32, neurons3=16, neurons4=8):
     model = Sequential()
     model.add(Dense(neurons1, input_dim=X_train.shape[1], activation='relu'))
     model.add(Dropout(dropout_rate))
@@ -224,48 +222,55 @@ def create_model(optimizer='adam', dropout_rate=0.3, neurons1=128, neurons2=64, 
     model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-# Create the KerasClassifier with default parameters
-model = KerasClassifier(
-    model=create_model, 
-    epochs=100, 
-    batch_size=32, 
-    verbose=0,
-    optimizer='adam',
-    dropout_rate=0.3,
-    neurons1=128,
-    neurons2=64,
-    neurons3=32,
-    neurons4=16
-)
-
-# Define the randomized search parameters
-param_dist = {
+# Define hyperparameter combinations
+param_grid = {
     'optimizer': ['adam', 'rmsprop'],
-    'dropout_rate': [0.3, 0.4, 0.5],
-    'neurons1': [128, 64, 32],
-    'neurons2': [64, 32, 16],
-    'neurons3': [32, 16, 8],
-    'neurons4': [16, 8, 4],
-    'batch_size': [32, 64, 128]
+    'dropout_rate': [0.3, 0.4],
+    'neurons1': [64, 32],
+    'neurons2': [32, 16],
+    'neurons3': [16, 8],
+    'neurons4': [8, 4]
 }
 
-# Create early stopping callback
-early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+# Track the best model and its performance
+best_model = None
+best_score = 0
+best_params = None
 
-# Create RandomizedSearchCV
-random_search = RandomizedSearchCV(estimator=model, param_distributions=param_dist, n_iter=50, n_jobs=-1, cv=2, verbose=1, random_state=42)
-random_search_result = random_search.fit(X_train, y_train, validation_data=(X_val, y_val), callbacks=[early_stopping])
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+# Iterative hyperparameter tuning
+for optimizer in param_grid['optimizer']:
+    for dropout_rate in param_grid['dropout_rate']:
+        for neurons1 in param_grid['neurons1']:
+            for neurons2 in param_grid['neurons2']:
+                for neurons3 in param_grid['neurons3']:
+                    for neurons4 in param_grid['neurons4']:
+                        # Create and compile the model
+                        model = create_model(optimizer=optimizer, dropout_rate=dropout_rate, neurons1=neurons1, neurons2=neurons2, neurons3=neurons3, neurons4=neurons4)
+                        # Train the model
+                        history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=50, batch_size=32, callbacks=[early_stopping], verbose=0)
+                        # Evaluate the model
+                        score = model.evaluate(X_val, y_val, verbose=0)[1]
+                        # Track the best model
+                        if score > best_score:
+                            best_model = model
+                            best_score = score
+                            best_params = {
+                                'optimizer': optimizer,
+                                'dropout_rate': dropout_rate,
+                                'neurons1': neurons1,
+                                'neurons2': neurons2,
+                                'neurons3': neurons3,
+                                'neurons4': neurons4
+                            }
+                            # Save the best model
+                            model.save('/remote_home/EENG645A_FinalProject-1/models/best_model.h5')
 
 # Print the best parameters and best score
-print(f"Best: {random_search_result.best_score_} using {random_search_result.best_params_}")
-
-# Save the best model
-best_model = random_search_result.best_estimator_.model_
-best_model.save('/remote_home/EENG645A_FinalProject-1/models/best_model.h5')
+print(f"Best: {best_score} using {best_params}")
 
 # Plot the training history of the best model
-history = random_search_result.best_estimator_.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=100, batch_size=32, callbacks=[early_stopping], verbose=0)
-
 plt.figure(figsize=(12, 4))
 
 # Plot training & validation accuracy values
