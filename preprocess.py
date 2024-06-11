@@ -283,7 +283,8 @@ The feature distance_from_port had the same issue as distance_from_shore, where 
 a port so their distance was 0, while some were out in open ocean. However, even worse than the distance_from_shore feature,
 the greatest value here was 3836963.25 meters (3836.9 km)! That's an extra 1000 kilometers from Point Nemo to the next 
 closest port, which is very unrealistic. This suggests that it was not an issue with being recorded incorrectly, but an
-issue with measurement. However, because the website offers no standardized way to measure distances to ports,
+issue with measurement. However, because the website offers no standardized way to measure distances to ports, it was decided
+keep these values as well.
 
 For speed, many boats were anchored or moored so their speed was 0. This brought the average down, so if a boat was seen
 speeding across open water, it looked like an extreme value. Nothing was so fast though that it appeared to be incorrectly
