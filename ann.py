@@ -49,8 +49,6 @@ print(f"Test set size: {len(test_df)}")
 # val_df.to_csv('/remote_home/EENG645A_FinalProject-1/split_data/val_data.csv', index=False)
 # test_df.to_csv('/remote_home/EENG645A_FinalProject-1/split_data/test_data.csv', index=False)
 
-''' STEP 5: INITIAL MODEL '''
-
 # Define features and target
 features = ['distance_from_shore', 'distance_from_port', 'speed', 'course', 'lat', 'lon']
 target = 'is_fishing'
@@ -68,6 +66,8 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_val = scaler.transform(X_val)
 X_test = scaler.transform(X_test)
+
+''' STEP 5: INITIAL MODEL '''
 
 # # Build the initial neural network architecture
 # model = Sequential([
@@ -213,6 +213,8 @@ plt.savefig('/remote_home/EENG645A_FinalProject-1/figures/step7_training_history
 
 ''' 
 This model is now the baseline. We will use hyperparameter tuning to see if we can train a better one!
+
+HYPERPARAMETER TUNED MODEL
 '''
 
 # # Function to create model for KerasClassifier
